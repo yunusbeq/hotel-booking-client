@@ -1,5 +1,5 @@
 import { useState, FormEvent } from "react";
-import { AuthMode, User } from "../types/types";
+import { AuthMode, User, LoginCredentials } from "../types/types";
 import { authService } from "../services/api";
 
 interface AuthFormProps {
@@ -8,13 +8,25 @@ interface AuthFormProps {
   onToggleMode: () => void;
 }
 
-function AuthForm({ mode, onSubmit, onToggleMode }: AuthFormProps) {
-  const [formData, setFormData] = useState<User>({
+export default function AuthForm({
+  mode,
+  onSubmit,
+  onToggleMode,
+}: AuthFormProps) {
+  const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
-  const [error, setError] = useState<string>("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -22,15 +34,22 @@ function AuthForm({ mode, onSubmit, onToggleMode }: AuthFormProps) {
     setLoading(true);
 
     try {
-      const user = await (mode === "login"
-        ? authService.login(formData.email, formData.password)
-        : authService.register(formData.email, formData.password));
-      onSubmit(user);
-    } catch (error: any) {
-      setError(
-        error.response?.data?.message ||
-          "An error occurred during authentication"
-      );
+      const userData = {
+        email: formData.email,
+        password: formData.password,
+      };
+
+      const response = await (mode === "login"
+        ? authService.login(userData)
+        : authService.register(userData));
+
+      onSubmit(response.data);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        setError(error.message || "An error occurred during authentication");
+      } else {
+        setError("An error occurred during authentication");
+      }
     } finally {
       setLoading(false);
     }
@@ -40,45 +59,46 @@ function AuthForm({ mode, onSubmit, onToggleMode }: AuthFormProps) {
     <div className="auth-form">
       <h2>{mode === "login" ? "Login" : "Register"}</h2>
       {error && <div className="error-message">{error}</div>}
+
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label htmlFor="email">Email:</label>
           <input
             type="email"
             id="email"
+            name="email"
             value={formData.email}
-            onChange={(e) =>
-              setFormData({ ...formData, email: e.target.value })
-            }
+            onChange={handleChange}
             required
           />
         </div>
+
         <div className="form-group">
           <label htmlFor="password">Password:</label>
           <input
             type="password"
             id="password"
+            name="password"
             value={formData.password}
-            onChange={(e) =>
-              setFormData({ ...formData, password: e.target.value })
-            }
+            onChange={handleChange}
             required
           />
         </div>
-        <button type="submit" className="submit-button" disabled={loading}>
+
+        <button type="submit" disabled={loading}>
           {loading ? "Loading..." : mode === "login" ? "Login" : "Register"}
         </button>
       </form>
-      <p className="auth-toggle">
+
+      <button
+        type="button"
+        onClick={onToggleMode}
+        className="toggle-mode-button"
+      >
         {mode === "login"
-          ? "Don't have an account?"
-          : "Already have an account?"}
-        <button className="link-button" onClick={onToggleMode}>
-          {mode === "login" ? "Register" : "Login"}
-        </button>
-      </p>
+          ? "Need an account? Register"
+          : "Already have an account? Login"}
+      </button>
     </div>
   );
 }
-
-export default AuthForm;

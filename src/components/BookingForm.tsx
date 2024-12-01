@@ -10,18 +10,16 @@ interface BookingFormProps {
 
 function BookingForm({ room, onBookingComplete }: BookingFormProps) {
   const [formData, setFormData] = useState({
-    guestName: "",
-    guestEmail: "",
-    checkIn: null as Date | null,
-    checkOut: null as Date | null,
+    startDate: null as Date | null,
+    endDate: null as Date | null,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!formData.checkIn || !formData.checkOut) {
-      alert("Please select check-in and check-out dates");
+    if (!formData.startDate || !formData.endDate) {
+      setError("Please select check-in and check-out dates");
       return;
     }
 
@@ -29,10 +27,14 @@ function BookingForm({ room, onBookingComplete }: BookingFormProps) {
     setError("");
 
     try {
-      const isAvailable = await roomService.getRoomAvailability(
-        room.id,
-        formData.checkIn,
-        formData.checkOut
+      // Önce odanın müsaitlik durumunu kontrol et
+      const availableRooms = await roomService.getAvailableRooms({
+        startDate: formData.startDate.toISOString(),
+        endDate: formData.endDate.toISOString(),
+      });
+
+      const isAvailable = availableRooms.data.some(
+        (availableRoom) => availableRoom._id === room._id
       );
 
       if (!isAvailable) {
@@ -40,12 +42,18 @@ function BookingForm({ room, onBookingComplete }: BookingFormProps) {
         return;
       }
 
+      // Rezervasyon oluştur
+      const totalPrice = calculateTotalPrice(
+        room.price,
+        formData.startDate,
+        formData.endDate
+      );
+
       await bookingService.createBooking({
-        roomId: room.id,
-        checkIn: formData.checkIn,
-        checkOut: formData.checkOut,
-        guestName: formData.guestName,
-        guestEmail: formData.guestEmail,
+        roomId: room._id.toString(),
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        totalPrice,
       });
 
       onBookingComplete();
@@ -58,7 +66,47 @@ function BookingForm({ room, onBookingComplete }: BookingFormProps) {
     }
   };
 
-  // ... geri kalan kod aynı ...
+  // Toplam fiyat hesaplama yardımcı fonksiyonu
+  const calculateTotalPrice = (
+    pricePerNight: number,
+    startDate: Date,
+    endDate: Date
+  ): number => {
+    const nights = Math.ceil(
+      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    return pricePerNight * nights;
+  };
+
+  return (
+    <div className="booking-form">
+      <h3>Book This Room</h3>
+      {error && <div className="error-message">{error}</div>}
+      <form onSubmit={handleSubmit}>
+        <div className="form-group">
+          <label>Check-in Date:</label>
+          <DatePicker
+            selected={formData.startDate}
+            onChange={(date) => setFormData({ ...formData, startDate: date })}
+            minDate={new Date()}
+            required
+          />
+        </div>
+        <div className="form-group">
+          <label>Check-out Date:</label>
+          <DatePicker
+            selected={formData.endDate}
+            onChange={(date) => setFormData({ ...formData, endDate: date })}
+            minDate={formData.startDate || new Date()}
+            required
+          />
+        </div>
+        <button type="submit" disabled={loading}>
+          {loading ? "Processing..." : "Book Now"}
+        </button>
+      </form>
+    </div>
+  );
 }
 
 export default BookingForm;

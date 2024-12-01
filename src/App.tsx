@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import RoomList from "./components/RoomList";
 import BookingForm from "./components/BookingForm";
 import AuthForm from "./components/AuthForm";
-import { Room, User, AuthMode } from "./types/types";
+import { Room, User, AuthMode, UserRole } from "./types/types";
 import { authService } from "./services/api";
 import "./App.css";
 
@@ -11,23 +11,55 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [showAuthForm, setShowAuthForm] = useState(false);
+  const [error, setError] = useState<string>("");
 
-  const handleAuth = async (userData: User) => {
+  // Sayfa yüklendiğinde cookie kontrolü
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      try {
+        // Backend'den user bilgisini al
+        const response = await authService.checkAuth();
+        if (response.data) {
+          setUser(response.data);
+        }
+      } catch (error) {
+        console.error("Auth check failed:", error);
+      }
+    };
+
+    checkAuthStatus();
+  }, []);
+
+  const handleAuth = async (userData: { email: string; password: string }) => {
     try {
-      const user = await (authMode === "login"
-        ? authService.login(userData.email, userData.password)
-        : authService.register(userData.email, userData.password));
-      setUser(user);
+      setError("");
+      const response = await (authMode === "login"
+        ? authService.login(userData)
+        : authService.register({
+            ...userData,
+            role: UserRole.CUSTOMER, // Yeni kullanıcılar için varsayılan rol
+          }));
+
+      setUser(response.data);
       setShowAuthForm(false);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Authentication failed:", error);
+      if (error instanceof Error) {
+        setError(error.message || "Authentication failed. Please try again.");
+      } else {
+        setError("Authentication failed. Please try again.");
+      }
     }
   };
 
-  const handleLogout = () => {
-    authService.logout();
-    setUser(null);
-    setSelectedRoom(null);
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+      setUser(null);
+      setSelectedRoom(null);
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
   };
 
   const handleBooking = (room: Room) => {
@@ -45,7 +77,10 @@ function App() {
         <div className="user-info">
           {user ? (
             <>
-              <span>Welcome, {user.email}</span>
+              <span>
+                Welcome, {user.email}
+                {user.role === UserRole.ADMIN && " (Admin)"}
+              </span>
               <button className="logout-button" onClick={handleLogout}>
                 Logout
               </button>
@@ -61,6 +96,7 @@ function App() {
         </div>
       </header>
       <main>
+        {error && <div className="error-message">{error}</div>}
         {showAuthForm ? (
           <AuthForm
             mode={authMode}
@@ -71,7 +107,10 @@ function App() {
           />
         ) : (
           <>
-            <RoomList onRoomSelect={handleBooking} />
+            <RoomList
+              onRoomSelect={handleBooking}
+              isAdmin={user?.role === UserRole.ADMIN}
+            />
             {selectedRoom && user && (
               <BookingForm
                 room={selectedRoom}
