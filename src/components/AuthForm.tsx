@@ -1,5 +1,6 @@
 import { useState, FormEvent } from "react";
 import { AuthMode, User } from "../types/types";
+import { authService } from "../services/api";
 
 interface AuthFormProps {
   mode: AuthMode;
@@ -12,15 +13,33 @@ function AuthForm({ mode, onSubmit, onToggleMode }: AuthFormProps) {
     email: "",
     password: "",
   });
+  const [error, setError] = useState<string>("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    setError("");
+    setLoading(true);
+
+    try {
+      const user = await (mode === "login"
+        ? authService.login(formData.email, formData.password)
+        : authService.register(formData.email, formData.password));
+      onSubmit(user);
+    } catch (error: any) {
+      setError(
+        error.response?.data?.message ||
+          "An error occurred during authentication"
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="auth-form">
       <h2>{mode === "login" ? "Login" : "Register"}</h2>
+      {error && <div className="error-message">{error}</div>}
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label htmlFor="email">Email:</label>
@@ -46,8 +65,8 @@ function AuthForm({ mode, onSubmit, onToggleMode }: AuthFormProps) {
             required
           />
         </div>
-        <button type="submit" className="submit-button">
-          {mode === "login" ? "Login" : "Register"}
+        <button type="submit" className="submit-button" disabled={loading}>
+          {loading ? "Loading..." : mode === "login" ? "Login" : "Register"}
         </button>
       </form>
       <p className="auth-toggle">

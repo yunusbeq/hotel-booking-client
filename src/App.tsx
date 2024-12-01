@@ -1,8 +1,9 @@
 import { useState } from "react";
 import RoomList from "./components/RoomList";
-import ReservationForm from "./components/ReservationForm";
+import BookingForm from "./components/BookingForm";
 import AuthForm from "./components/AuthForm";
 import { Room, User, AuthMode } from "./types/types";
+import { authService } from "./services/api";
 import "./App.css";
 
 function App() {
@@ -11,13 +12,20 @@ function App() {
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [showAuthForm, setShowAuthForm] = useState(false);
 
-  const handleAuth = (userData: User) => {
-    console.log(`${authMode} successful:`, userData);
-    setUser(userData);
-    setShowAuthForm(false);
+  const handleAuth = async (userData: User) => {
+    try {
+      const user = await (authMode === "login"
+        ? authService.login(userData.email, userData.password)
+        : authService.register(userData.email, userData.password));
+      setUser(user);
+      setShowAuthForm(false);
+    } catch (error) {
+      console.error("Authentication failed:", error);
+    }
   };
 
   const handleLogout = () => {
+    authService.logout();
     setUser(null);
     setSelectedRoom(null);
   };
@@ -65,9 +73,9 @@ function App() {
           <>
             <RoomList onRoomSelect={handleBooking} />
             {selectedRoom && user && (
-              <ReservationForm
+              <BookingForm
                 room={selectedRoom}
-                onReservationComplete={() => setSelectedRoom(null)}
+                onBookingComplete={() => setSelectedRoom(null)}
               />
             )}
           </>

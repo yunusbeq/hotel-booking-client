@@ -1,7 +1,7 @@
 import { useState, FormEvent } from "react";
 import DatePicker from "react-datepicker";
 import { Room } from "../types/types";
-import "react-datepicker/dist/react-datepicker.css";
+import { reservationService, roomService } from "../services/api";
 
 interface ReservationFormProps {
   room: Room;
@@ -18,20 +18,47 @@ function ReservationForm({
     checkIn: null as Date | null,
     checkOut: null as Date | null,
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>("");
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!formData.checkIn || !formData.checkOut) {
       alert("Please select check-in and check-out dates");
       return;
     }
 
-    console.log("Reservation completed:", {
-      ...formData,
-      roomId: room.id,
-      totalPrice: calculateTotalPrice(),
-    });
-    onReservationComplete();
+    setLoading(true);
+    setError("");
+
+    try {
+      const isAvailable = await roomService.getRoomAvailability(
+        room.id,
+        formData.checkIn,
+        formData.checkOut
+      );
+
+      if (!isAvailable) {
+        setError("Room is not available for selected dates");
+        return;
+      }
+
+      await reservationService.createReservation({
+        roomId: room.id,
+        checkIn: formData.checkIn,
+        checkOut: formData.checkOut,
+        guestName: formData.guestName,
+        guestEmail: formData.guestEmail,
+      });
+
+      onReservationComplete();
+    } catch (error: any) {
+      setError(
+        error.response?.data?.message || "An error occurred during reservation"
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const calculateTotalPrice = () => {
@@ -122,10 +149,11 @@ function ReservationForm({
             required
           />
         </div>
-        <button type="submit" className="submit-button">
-          Complete Reservation
+        <button type="submit" className="submit-button" disabled={loading}>
+          {loading ? "Reserving..." : "Complete Reservation"}
         </button>
       </form>
+      {error && <div className="error-message">{error}</div>}
     </div>
   );
 }

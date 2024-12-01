@@ -8,7 +8,7 @@ export interface Room {
   description: string;
 }
 
-export interface Reservation {
+export interface Booking {
   id: number;
   roomId: number;
   checkIn: Date;
@@ -23,3 +23,23 @@ export interface User {
 }
 
 export type AuthMode = "login" | "register";
+
+export interface AuthResponse {
+  token: string;
+  user: User;
+}
+
+export interface RoomResponse extends Room {
+  status?: string;
+}
+
+export interface BookingResponse {
+  id: number;
+  roomId: number;
+  checkIn: string;
+  checkOut: string;
+  guestName: string;
+  guestEmail: string;
+  status: string;
+  totalPrice: number;
+}
